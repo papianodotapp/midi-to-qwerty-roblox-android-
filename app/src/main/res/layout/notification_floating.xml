@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/notif_bg"
+    android:padding="12dp">
+
+    <!-- Left accent glow bar -->
+    <View
+        android:id="@+id/accent_bar"
+        android:layout_width="3dp"
+        android:layout_height="match_parent"
+        android:layout_alignParentStart="true"
+        android:layout_marginEnd="12dp"
+        android:background="@color/accent_glow" />
+
+    <!-- App icon -->
+    <ImageView
+        android:id="@+id/notif_icon"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_toEndOf="@id/accent_bar"
+        android:layout_centerVertical="true"
+        android:src="@drawable/iconpop"
+        android:scaleType="fitCenter" />
+
+    <!-- Text container -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_toEndOf="@id/notif_icon"
+        android:layout_centerVertical="true"
+        android:layout_marginStart="12dp"
+        android:orientation="vertical">
+
+        <!-- Title row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/notif_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="PAPIANO!"
+                android:textColor="@color/brutal_black"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.04" />
+
+            <!-- Status dot -->
+            <TextView
+                android:id="@+id/notif_dot"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="●"
+                android:textColor="@color/green"
+                android:textSize="10sp"
+                android:layout_marginEnd="4dp" />
+
+            <TextView
+                android:id="@+id/notif_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Active"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <!-- Subtitle -->
+        <TextView
+            android:id="@+id/notif_subtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Panel active • Tap to open"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            android:layout_marginTop="2dp"
+            android:singleLine="true"
+            android:ellipsize="end" />
+
+    </LinearLayout>
+
+</RelativeLayout>

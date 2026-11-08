@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/gradient_bg"
+    android:scrollbars="none"
+    android:fillViewport="true"
+    android:overScrollMode="never">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="24dp"
+        android:paddingTop="36dp"
+        android:paddingBottom="32dp">
+
+        <!-- ═══════════ HEADER ═══════════ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="24dp">
+
+            <ImageView
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:src="@drawable/iconpop"
+                android:layout_marginEnd="12dp" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="PAPIANO!"
+                    android:textColor="@color/brutal_black"
+                    android:textSize="26sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.04" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Home"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11sp"
+                    android:letterSpacing="0.08" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ═══════════ CONNECTION STATUS CARD ═══════════ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/card_glass"
+            android:orientation="vertical"
+            android:padding="20dp"
+            android:layout_marginBottom="14dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="CONNECTION"
+                android:textColor="@color/brutal_black"
+                android:textSize="9sp"
+                android:letterSpacing="0.15"
+                android:textStyle="bold"
+                android:layout_marginBottom="10dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <View
+                    android:id="@+id/status_dot"
+                    android:layout_width="10dp"
+                    android:layout_height="10dp"
+                    android:background="@drawable/bubble_bg"
+                    android:backgroundTint="@color/green"
+                    android:layout_marginEnd="10dp" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tv_connection_status"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Active"
+                        android:textColor="@color/green"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_connection_method"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="via Shizuku"
+                        android:textColor="@color/text_muted"
+                        android:textSize="11sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ═══════════ START / STOP BUTTON ═══════════ -->
+        <Button
+            android:id="@+id/btn_start"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="Start Playing"
+            android:textColor="@color/brutal_black"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            android:background="@drawable/button_gradient"
+            android:stateListAnimator="@null"
+            android:layout_marginBottom="14dp" />
+
+        <!-- ═══════════ MIDI DEVICES CARD ═══════════ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/card_glass"
+            android:orientation="vertical"
+            android:padding="20dp"
+            android:layout_marginBottom="14dp">
+
+            <!-- Header + Refresh -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="12dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="MIDI DEVICES"
+                    android:textColor="@color/brutal_black"
+                    android:textSize="9sp"
+                    android:letterSpacing="0.15"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btn_refresh_midi"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:text="Refresh"
+                    android:textColor="@color/brutal_black"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:textAllCaps="false"
+                    android:background="@drawable/button_muted"
+                    android:paddingHorizontal="14dp"
+                    android:stateListAnimator="@null" />
+            </LinearLayout>
+
+            <!-- Device list container (populated dynamically) -->
+            <LinearLayout
+                android:id="@+id/midi_device_list"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <!-- Placeholder when no devices -->
+                <TextView
+                    android:id="@+id/tv_no_devices"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="No MIDI devices detected"
+                    android:textColor="@color/text_muted"
+                    android:textSize="12sp"
+                    android:gravity="center"
+                    android:paddingVertical="16dp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ═══════════ VELOCITY CARD ═══════════ -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/card_glass"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="20dp"
+            android:layout_marginBottom="14dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:layout_marginEnd="12dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="VELOCITY"
+                    android:textColor="@color/brutal_black"
+                    android:textSize="9sp"
+                    android:letterSpacing="0.15"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Send dynamics for Visual Piano. Off for normal QWERTY."
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp"
+                    android:lineSpacingExtra="2dp" />
+            </LinearLayout>
+
+            <Switch
+                android:id="@+id/sw_velocity"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:thumbTint="@color/accent_glow"
+                android:trackTint="@color/text_muted" />
+        </LinearLayout>
+
+        <!-- ═══════════ DIVIDER ═══════════ -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="@drawable/divider_glow"
+            android:layout_marginVertical="6dp" />
+
+        <!-- ═══════════ FORCE CLOSE ═══════════ -->
+        <Button
+            android:id="@+id/btn_force_close"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="Force Close"
+            android:textColor="@color/brutal_black"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            android:background="@drawable/button_danger"
+            android:stateListAnimator="@null"
+            android:layout_marginTop="8dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Force Close = full reset. You will need to re-authenticate."
+            android:textColor="@color/text_muted"
+            android:textSize="10sp"
+            android:gravity="center"
+            android:layout_marginTop="10dp" />
+
+    </LinearLayout>
+</ScrollView>

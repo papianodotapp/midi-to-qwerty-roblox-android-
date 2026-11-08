@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Papiano</string>
+    <string name="tile_name">Papiano</string>
+
+    <!-- Activation -->
+    <string name="activate">Activate</string>
+    <string name="activated">Activated</string>
+    <string name="permission_not_granted">Not granted</string>
+    <string name="permission_granted_shizuku">Granted (Shizuku)</string>
+    <string name="permission_granted_root">Granted (Root)</string>
+    <string name="permission_granted_adb">Granted (ADB)</string>
+    <string name="active_title">Activate</string>
+    <string name="active_text">Choose activation method:</string>
+
+    <!-- Service state -->
+    <string name="start_playing">Start</string>
+    <string name="stop_playing">Stop</string>
+    <string name="service_stopped">Stopped</string>
+    <string name="service_running">Running</string>
+    <string name="connect_success">Connected</string>
+    <string name="connect_failed">Failed</string>
+
+    <!-- Close -->
+    <string name="close_app">Close</string>
+    <string name="close_app_title">Close</string>
+    <string name="close_app_text">Close completely?</string>
+    <string name="close">Close</string>
+    <string name="cancel">Cancel</string>
+
+    <!-- MIDI device -->
+    <string name="midi_not_found">Not found</string>
+    <string name="midi_device_label">MIDI</string>
+
+    <!-- Notifications -->
+    <string name="noti_text">MIDI bridge running • Tap to open</string>
+    <string name="noti_title">PAPIANO!</string>
+    <string name="noti_action">STOP</string>
+    <string name="noti_channel">Service</string>
+
+    <!-- Misc -->
+    <string name="copy_cmd">Copy ADB</string>
+    <string name="ok">OK</string>
+    <string name="agree">OK</string>
+    <string name="exit">Exit</string>
+
+    <!-- Privacy / first launch -->
+    <string name="privacy_title">Welcome</string>
+    <string name="privacy_text">MIDI to keyboard bridge for Roblox piano games.</string>
+
+    <!-- Brand -->
+    <string name="brand_tagline">MIDI to Piano Bridge</string>
+    <string name="credits"></string>
+
+    <!-- Launcher shortcuts -->
+    <string name="shortcut_on">Start</string>
+    <string name="shortcut_off">Stop</string>
+</resources>

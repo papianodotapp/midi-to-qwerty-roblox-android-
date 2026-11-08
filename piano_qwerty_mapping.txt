@@ -1,0 +1,123 @@
+================================================================
+  Piano QWERTY Keyboard Mapping (88 Keys - Roblox Virtual Piano)
+================================================================
+
+Referensi tombol keyboard QWERTY untuk bermain piano di Roblox.
+Cocok untuk player yang main pakai keyboard fisik/virtual.
+
+Keterangan:
+  lowercase  = Tekan langsung (white key / natural)
+  SHIFT+key  = Tahan Shift lalu tekan (black key / sharp)
+  CTRL+key   = Tahan Ctrl lalu tekan (oktaf ekstrem rendah/tinggi)
+
+-------------------------------------------------------
+
+=== OKTAF RENDAH (A0 - B1) === [CTRL + tombol]
+A0   = Ctrl+1
+A#0  = Ctrl+2
+B0   = Ctrl+3
+C1   = Ctrl+4
+C#1  = Ctrl+5
+D1   = Ctrl+6
+D#1  = Ctrl+7
+E1   = Ctrl+8
+F1   = Ctrl+9
+F#1  = Ctrl+0
+G1   = Ctrl+Q
+G#1  = Ctrl+W
+A1   = Ctrl+E
+A#1  = Ctrl+R
+B1   = Ctrl+T
+
+=== OKTAF 2 (C2 - B2) ===
+C2   = 1
+C#2  = Shift+1
+D2   = 2
+D#2  = Shift+2
+E2   = 3
+F2   = 4
+F#2  = Shift+4
+G2   = 5
+G#2  = Shift+5
+A2   = 6
+A#2  = Shift+6
+B2   = 7
+
+=== OKTAF 3 (C3 - B3) ===
+C3   = 8
+C#3  = Shift+8
+D3   = 9
+D#3  = Shift+9
+E3   = 0
+F3   = q
+F#3  = Shift+Q
+G3   = w
+G#3  = Shift+W
+A3   = e
+A#3  = Shift+E
+B3   = r
+
+=== OKTAF 4 (C4 - B4) === [Middle C]
+C4   = t
+C#4  = Shift+T
+D4   = y
+D#4  = Shift+Y
+E4   = u
+F4   = i
+F#4  = Shift+I
+G4   = o
+G#4  = Shift+O
+A4   = p
+A#4  = Shift+P
+B4   = a
+
+=== OKTAF 5 (C5 - B5) ===
+C5   = s
+C#5  = Shift+S
+D5   = d
+D#5  = Shift+D
+E5   = f
+F5   = g
+F#5  = Shift+G
+G5   = h
+G#5  = Shift+H
+A5   = j
+A#5  = Shift+J
+B5   = k
+
+=== OKTAF 6 (C6 - B6) ===
+C6   = l
+C#6  = Shift+L
+D6   = z
+D#6  = Shift+Z
+E6   = x
+F6   = c
+F#6  = Shift+C
+G6   = v
+G#6  = Shift+V
+A6   = b
+A#6  = Shift+B
+B6   = n
+
+=== OKTAF TINGGI (C7 - C8) === [CTRL + tombol]
+C7   = m
+C#7  = Ctrl+Y
+D7   = Ctrl+U
+D#7  = Ctrl+I
+E7   = Ctrl+O
+F7   = Ctrl+P
+F#7  = Ctrl+A
+G7   = Ctrl+S
+G#7  = Ctrl+D
+A7   = Ctrl+F
+A#7  = Ctrl+G
+B7   = Ctrl+H
+C8   = Ctrl+J
+
+================================================================
+RINGKASAN:
+- 88 tombol piano penuh (A0 sampai C8)
+- White keys = huruf kecil / angka (tanpa modifier)
+- Black keys = SHIFT + tombol yang sama
+- Oktaf paling rendah & tinggi = CTRL + tombol
+================================================================
