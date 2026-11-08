@@ -60,20 +60,28 @@ static uint8_t g_lastReport[REPORT_SIZE] = {0xFF};
 // Old code ignored the return value -> the note was silently dropped, which
 // the user perceives as "missed a key" (much worse than a tiny extra wait).
 //
-// Strategy: spin-retry with sched_yield up to ~1ms total. Real-world UHID
-// write should complete in microseconds; if it doesn't, we'd rather wait a
-// few hundred microseconds than lose the note. Bounded so a truly broken fd
-// can't hang the binder thread forever.
+// Strategy: on EAGAIN, SLEEP in poll(POLLOUT) (max 2ms per try, 4 tries)
+// instead of busy-spinning. The old version spun with sched_yield() 256x
+// from a nice -19 thread — sched_yield on a high-priority thread barely
+// gives the CPU away, so under a burst it burned a whole core and starved
+// the very kernel/input threads that drain the queue (feels like the phone
+// freezing). poll() actually sleeps until the fd is writable.
+// Bounded (~8ms worst case) so a truly broken fd can't hang the thread.
 // ============================================================================
 static inline ssize_t uhidWrite(const void *buf, size_t len) {
     if (uhid_fd < 0) return -1;
-    // ~1ms total budget at 4us per yield iteration (256 attempts).
-    for (int attempt = 0; attempt < 256; ++attempt) {
+    int eagainTries = 0;
+    for (int attempt = 0; attempt < 16; ++attempt) {
         ssize_t r = write(uhid_fd, buf, len);
         if (r >= 0) return r;
         if (errno == EINTR) continue;
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            sched_yield();
+            if (++eagainTries > 4) break;
+            struct pollfd pfd;
+            pfd.fd = uhid_fd;
+            pfd.events = POLLOUT;
+            pfd.revents = 0;
+            poll(&pfd, 1, 2 /* ms */);
             continue;
         }
         // Hard error: log once per uHID lifetime and bail.
@@ -417,14 +425,37 @@ static void uhidDrainLoop(int fd) {
         if (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) break;
         if (pfd.revents & POLLIN) {
             struct uhid_event ev;
+            memset(&ev, 0, sizeof(ev));
             ssize_t n = read(fd, &ev, sizeof(ev));
             if (n < 0) {
                 if (errno == EAGAIN || errno == EINTR) continue;
                 break;
             }
-            // We don't care WHAT the kernel sent — discarding is fine. The
-            // point is just to keep the queue empty so no back-pressure
-            // ever bleeds into write() latency.
+            // Most events (START/STOP/OPEN/CLOSE/OUTPUT) can be discarded.
+            //
+            // GET_REPORT / SET_REPORT are different: the kernel BLOCKS the
+            // requesting thread (up to 5s, holding the HID device's report
+            // lock) until userspace answers with a *_REPLY. Silently dropping
+            // them means whoever asked — e.g. the system input stack probing
+            // the new keyboard — is stuck for seconds, which shows up as the
+            // whole input system hanging. Always answer immediately with an
+            // error (we have no feature reports), so the kernel unblocks.
+            if (ev.type == UHID_GET_REPORT) {
+                struct uhid_event rep;
+                memset(&rep, 0, sizeof(rep));
+                rep.type = UHID_GET_REPORT_REPLY;
+                rep.u.get_report_reply.id = ev.u.get_report.id;
+                rep.u.get_report_reply.err = EIO;
+                rep.u.get_report_reply.size = 0;
+                write(fd, &rep, sizeof(rep));
+            } else if (ev.type == UHID_SET_REPORT) {
+                struct uhid_event rep;
+                memset(&rep, 0, sizeof(rep));
+                rep.type = UHID_SET_REPORT_REPLY;
+                rep.u.set_report_reply.id = ev.u.set_report.id;
+                rep.u.set_report_reply.err = 0;
+                write(fd, &rep, sizeof(rep));
+            }
         }
     }
 }
@@ -630,5 +661,19 @@ Java_com_panpanpan_app_GamePadNative_nativeQwertyKey(JNIEnv *env,
             emitHeldReport();
         }
     }
+}
+
+// All-notes-off: release every held key (and modifiers) in one empty report.
+// Called when the MIDI device disappears / port closes / app service stops,
+// so no key — especially Ctrl/Shift — stays stuck down on the virtual
+// keyboard (stuck keys = endless key-repeat into Roblox + broken shortcuts).
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_panpanpan_app_GamePadNative_nativeReleaseAll(JNIEnv *env, jclass clazz) {
+    std::lock_guard<std::mutex> lock(g_heldMutex);
+    g_heldKeys.clear();
+    if (uhid_fd < 0) return;
+    uint8_t empty[NKRO_BITMAP_BYTES] = {0};
+    writeKeyboardBitmap(0x00, empty);
 }
 

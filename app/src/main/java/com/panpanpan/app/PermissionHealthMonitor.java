@@ -45,7 +45,20 @@ import java.util.concurrent.Executors;
 public class PermissionHealthMonitor {
 
     private static final String TAG = "HealthMon";
-    private static final long CHECK_INTERVAL_MS = 3000;
+    // Dulu 3 detik. Tiap check = Shizuku ping / spawn proses `su`, query
+    // AccessibilityManager, dan MidiManager.getDevices() (binder ke system_server).
+    // Sekarang juga cuma jalan saat MainActivity kelihatan (start/stop di
+    // onResume/onPause), bukan terus-terusan selagi user main di Roblox.
+    private static final long CHECK_INTERVAL_MS = 10_000;
+
+    /** Minimal jarak antar paksa OFF->ON accessibility (tiap toggle = rebind service). */
+    private static final long ENSURE_ENABLED_COOLDOWN_MS = 60_000;
+    private long lastEnsureEnabledMs = 0;
+
+    /** Cache hasil cek root supaya gak spawn `su` tiap check. */
+    private static final long ROOT_CHECK_CACHE_MS = 60_000;
+    private long lastRootCheckMs = 0;
+    private boolean lastRootAlive = false;
 
     public enum Status { HEALTHY, UNHEALTHY, RECOVERING }
 
@@ -153,7 +166,14 @@ public class PermissionHealthMonitor {
             // it from the inside.
             newStatus = Status.RECOVERING;
             message = "Accessibility service not active. Retrying...";
-            AccessibilityGate.ensureEnabled(context);
+            // Rate-limited: tiap ensureEnabled bisa nge-toggle accessibility
+            // OFF->ON (unbind+rebind service, buka/tutup MIDI). Dulu bisa
+            // kejadian tiap 3 detik.
+            long now = android.os.SystemClock.elapsedRealtime();
+            if (lastEnsureEnabledMs == 0 || now - lastEnsureEnabledMs >= ENSURE_ENABLED_COOLDOWN_MS) {
+                lastEnsureEnabledMs = now;
+                AccessibilityGate.ensureEnabled(context);
+            }
         } else if (sourceAlive && !binderAlive) {
             // Source alive, accessibility genuinely bound, but binder dead —
             // daemon probably crashed. Recovery itself is driven by
@@ -189,11 +209,31 @@ public class PermissionHealthMonitor {
             case "shizuku":
                 try { return rikka.shizuku.Shizuku.pingBinder(); }
                 catch (Throwable t) { return false; }
-            case "root":
+            case "root": {
+                long now = android.os.SystemClock.elapsedRealtime();
+                if (lastRootCheckMs != 0 && now - lastRootCheckMs < ROOT_CHECK_CACHE_MS) {
+                    return lastRootAlive;
+                }
+                Process p = null;
+                boolean ok = false;
                 try {
-                    Process p = Runtime.getRuntime().exec("su -c id");
-                    return p.waitFor() == 0;
-                } catch (Throwable t) { return false; }
+                    p = Runtime.getRuntime().exec(new String[]{"su", "-c", "id"});
+                    ok = p.waitFor() == 0;
+                } catch (Throwable t) {
+                    ok = false;
+                } finally {
+                    // Dulu proses `su` + stream-nya gak pernah ditutup -> fd bocor.
+                    if (p != null) {
+                        try { p.getInputStream().close(); } catch (Throwable ignored) {}
+                        try { p.getErrorStream().close(); } catch (Throwable ignored) {}
+                        try { p.getOutputStream().close(); } catch (Throwable ignored) {}
+                        try { p.destroy(); } catch (Throwable ignored) {}
+                    }
+                }
+                lastRootCheckMs = now;
+                lastRootAlive = ok;
+                return ok;
+            }
             default:
                 return false;
         }

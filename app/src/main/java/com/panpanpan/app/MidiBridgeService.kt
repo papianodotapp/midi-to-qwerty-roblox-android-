@@ -11,6 +11,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.graphics.drawable.Icon
+import android.media.midi.MidiDevice
 import android.media.midi.MidiDeviceInfo
 import android.media.midi.MidiManager
 import android.media.midi.MidiOutputPort
@@ -20,9 +21,9 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
 import android.os.RemoteException
+import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
-import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import android.widget.RemoteViews
 import androidx.core.content.ContextCompat
@@ -67,6 +68,29 @@ class MidiBridgeService : AccessibilityService() {
     private var midiManager: MidiManager? = null
     private var deviceCallback: MidiManager.DeviceCallback? = null
     private var midiOutputPort: MidiOutputPort? = null
+
+    /**
+     * MidiDevice yg lagi kita pegang. DULU gak disimpen sama sekali — cuma
+     * port-nya yg ditutup. Akibatnya tiap reconnect / rescan ninggalin
+     * MidiDevice yg masih kebuka di system_server, lalu ditutup "random" sama
+     * finalizer GC di thread lain. Close dari finalizer yg barengan sama
+     * openDevice baru itu persis pola deadlock UsbDirectMidiDevice
+     * (close <-> open) di system_server yg bikin HP freeze total sampe
+     * harus force reboot. Sekarang device SELALU ditutup eksplisit,
+     * berpasangan sama port-nya, di midi-thread.
+     */
+    private var midiDevice: MidiDevice? = null
+
+    /** True setelah onDestroy — callback openDevice yg telat langsung close device. */
+    @Volatile
+    private var destroyed = false
+
+    /**
+     * Backoff kalau openDevice gagal: jangan hajar system_server dgn
+     * open/close berulang tiap rescan (itu yg memicu deadlock USB MIDI).
+     */
+    private var openFailures = 0
+    private var nextOpenAllowedAt = 0L
 
     /**
      * ID device MIDI yg lagi kita pegang port-nya. -1 = belum ada. Dipake
@@ -165,17 +189,18 @@ class MidiBridgeService : AccessibilityService() {
     private var midiHandler: Handler? = null
 
     /**
-     * Periodic rescan. Interval adaptif:
-     *   - 3s kalau ada MIDI device connected (responsive reconnect)
-     *   - 10s kalau gak ada device (idle mode, hemat CPU/battery)
-     * Fallback kalau MidiManager.DeviceCallback miss event.
+     * Periodic rescan. Fallback kalau MidiManager.DeviceCallback miss event.
      */
     private val rescanRunnable: Runnable = object : Runnable {
         override fun run() {
             try { rescanMidi() } catch (e: Throwable) { Log.e(TAG, "rescan", e) }
             finally {
                 // Adaptive interval: fast saat connected, slow saat idle
-                val interval = if (currentMidiDeviceId != -1) 3000L else 10000L
+                // Ini cuma FALLBACK — DeviceCallback udah nanganin plug/unplug
+                // secara instan. Tiap mm.devices = binder call ke MidiService
+                // di system_server (service yg sama yg rawan deadlock USB),
+                // jadi jangan terlalu sering.
+                val interval = if (currentMidiDeviceId != -1) 10_000L else 15_000L
                 midiHandler?.postDelayed(this, interval)
             }
         }
@@ -259,6 +284,7 @@ class MidiBridgeService : AccessibilityService() {
         if (isGamePadCreated) {
             Log.d(TAG, "Virtual HID ready, MIDI bridge live")
             warnedNullBridge.set(false)
+            DaemonControl.onConnected()
 
             // Publish live binder for direct (no-broadcast) note delivery.
             GamePadBridge.gamePad = iGamePad
@@ -333,12 +359,12 @@ class MidiBridgeService : AccessibilityService() {
         // bisa kill service).
         try { sendNotification() } catch (e: Throwable) { Log.e(TAG, "sendNotification", e) }
 
-        // autoGrant juga sentuh Settings.Secure (binder), pindah ke worker.
-        midiHandler?.post {
-            try { autoGrantAccessibilityIfNeeded() } catch (e: Throwable) {
-                Log.w(TAG, "autoGrant", e)
-            }
-        }
+        // NOTE: dulu di sini ada AccessibilityGate.ensureEnabled(). Itu bisa
+        // nge-toggle accessibility OFF->ON dari DALAM service yg lagi jalan
+        // (kalau AccessibilityManager telat update) -> service ke-unbind,
+        // ke-bind lagi, onServiceConnected lagi, toggle lagi... loop rebind
+        // yg tiap putaran juga buka/tutup MIDI device. Kalau service ini
+        // jalan, artinya udah ke-bind — gak perlu dicek dari sini.
 
         // Defer initMidi 1500ms. Berdasarkan bug report MIUI 14, system_server
         // bisa lagi recovering dari UsbHostManager deadlock pas user buka app.
@@ -391,17 +417,6 @@ class MidiBridgeService : AccessibilityService() {
         DaemonControl.respawn(this)
     }
 
-    /**
-     * Re-write Settings.Secure on each connect so the service survives reboots
-     * without the user having to dive into Accessibility settings. Delegated
-     * to AccessibilityGate for consistency with the other two call sites
-     * (MainActivity, PermissionGateActivity) that do the same thing.
-     * Run on midiHandler thread.
-     */
-    private fun autoGrantAccessibilityIfNeeded() {
-        AccessibilityGate.ensureEnabled(this)
-    }
-
     /* ---------------- MIDI (semua di midiHandler thread) ---------------- */
 
     /** MUST run on midiHandler thread. */
@@ -431,12 +446,12 @@ class MidiBridgeService : AccessibilityService() {
                 Log.d(TAG, "callback onDeviceRemoved id=${info.id}")
                 midiHandler?.post {
                     if (info.id == currentMidiDeviceId) {
-                        currentMidiDeviceId = -1
-                        try { midiOutputPort?.close() } catch (_: Throwable) {}
-                        midiOutputPort = null
+                        closeMidi()
                         // Kalau open-nya in-flight pas device dicabut, jgn
                         // tinggalin flag stuck.
                         isOpeningMidi = false
+                        openFailures = 0
+                        nextOpenAllowedAt = 0L
                         broadcastMidiDevice("")
                     }
                 }
@@ -480,11 +495,11 @@ class MidiBridgeService : AccessibilityService() {
             // Gak ada device output-capable. Kalau sebelumnya kita pegang
             // sesuatu, cleanup + kasih tau popup.
             if (currentMidiDeviceId != -1 || lastBroadcastName.isNotEmpty()) {
-                currentMidiDeviceId = -1
-                try { midiOutputPort?.close() } catch (_: Throwable) {}
-                midiOutputPort = null
+                closeMidi()
                 broadcastMidiDevice("")
             }
+            openFailures = 0
+            nextOpenAllowedAt = 0L
             return
         }
 
@@ -498,10 +513,38 @@ class MidiBridgeService : AccessibilityService() {
             return
         }
 
+        // Backoff setelah open gagal (2s, 4s, 8s ... max 60s).
+        if (SystemClock.elapsedRealtime() < nextOpenAllowedAt) return
+
         Log.d(TAG, "MIDI switching device: $currentMidiDeviceId -> ${target.id}")
         try { handleDevice(target) } catch (e: Throwable) {
             Log.e(TAG, "handleDevice from rescan", e)
         }
+    }
+
+    /**
+     * Lepas semua key yg ke-hold, tutup port DAN device. MUST run on
+     * midiHandler thread.
+     */
+    private fun closeMidi() {
+        releaseAllKeys()
+        try { midiOutputPort?.close() } catch (_: Throwable) {}
+        midiOutputPort = null
+        try { midiDevice?.close() } catch (_: Throwable) {}
+        midiDevice = null
+        currentMidiDeviceId = -1
+    }
+
+    /** All-notes-off di virtual keyboard (anti stuck key). */
+    private fun releaseAllKeys() {
+        try { iGamePad?.releaseAll() } catch (_: Throwable) {}
+    }
+
+    private fun onOpenFailed() {
+        openFailures++
+        val delay = (2000L shl (openFailures - 1).coerceAtMost(5)).coerceAtMost(60_000L)
+        nextOpenAllowedAt = SystemClock.elapsedRealtime() + delay
+        Log.w(TAG, "MIDI open failed ($openFailures x), next try in ${delay}ms")
     }
 
     /** MUST run on midiHandler thread. */
@@ -515,13 +558,16 @@ class MidiBridgeService : AccessibilityService() {
                 try {
                     if (device == null) {
                         Log.e(TAG, "Failed to open MIDI device id=$targetId")
-                        // Open gagal — biarin currentMidiDeviceId stay di state
-                        // sebelumnya. Rescan periodik bakal nyoba lagi nanti.
+                        onOpenFailed()
                         return@openDevice
                     }
-                    // Cleanup port lama (kalau ada) sebelum claim port baru.
-                    try { midiOutputPort?.close() } catch (_: Throwable) {}
-                    midiOutputPort = null
+                    if (destroyed) {
+                        // Service udah mati duluan — jangan bocorin device.
+                        try { device.close() } catch (_: Throwable) {}
+                        return@openDevice
+                    }
+                    // Tutup port + device lama SEBELUM claim yg baru.
+                    closeMidi()
 
                     val newPort = try {
                         device.openOutputPort(0)
@@ -530,11 +576,18 @@ class MidiBridgeService : AccessibilityService() {
                     }
                     if (newPort == null) {
                         Log.e(TAG, "openOutputPort returned null for id=$targetId")
+                        // Device kebuka tapi port gagal -> WAJIB close device,
+                        // dulu ini bocor.
+                        try { device.close() } catch (_: Throwable) {}
+                        onOpenFailed()
                         return@openDevice
                     }
                     newPort.connect(QwertyReceiver())
+                    midiDevice = device
                     midiOutputPort = newPort
                     currentMidiDeviceId = targetId
+                    openFailures = 0
+                    nextOpenAllowedAt = 0L
 
                     val deviceName = deviceInfo.properties
                         .getString(MidiDeviceInfo.PROPERTY_NAME) ?: "Unknown"
@@ -545,6 +598,7 @@ class MidiBridgeService : AccessibilityService() {
             }, midiHandler)
         } catch (e: Throwable) {
             isOpeningMidi = false
+            onOpenFailed()
             Log.e(TAG, "midiManager.openDevice", e)
         }
     }
@@ -565,7 +619,6 @@ class MidiBridgeService : AccessibilityService() {
     private inner class QwertyReceiver : MidiReceiver() {
         private val NOTE_ON = 0x90
         private val NOTE_OFF = 0x80
-        private val ALIVE: Byte = 0xFE.toByte()
 
         /**
          * Latency/jitter: onSend SELALU dipanggil di thread dispatcher internal
@@ -589,54 +642,50 @@ class MidiBridgeService : AccessibilityService() {
                         android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
                 } catch (_: Throwable) {}
             }
-            if (count == 0 || data[offset] == ALIVE) return
+            if (count == 0) return
+            val gp = iGamePad
+            val end = offset + count
 
             var i = offset
-            while (i < offset + count) {
-                val byte = data[i].toInt() and 0xFF
-                if (byte < 0x80) { i++; continue }
-                if (i + 2 >= offset + count) { i++; continue }
+            while (i < end) {
+                val status = data[i].toInt() and 0xFF
+                if (status < 0x80) { i++; continue }          // stray data byte
+                if (status >= 0xF8) { i++; continue }         // realtime (clock, active sensing 0xFE, ...) = 1 byte
+                if (status == 0xF0) {                         // SysEx: skip sampai 0xF7
+                    i++
+                    while (i < end && (data[i].toInt() and 0xFF) != 0xF7) i++
+                    i++
+                    continue
+                }
+                // Panjang pesan yg BENER per tipe. Dulu semua dianggap 3 byte,
+                // jadi Program Change / Channel Pressure (2 byte) nge-geser
+                // parser dan bisa "nelen" Note On/Off sesudahnya -> not hilang
+                // atau not gak pernah dilepas (stuck key).
+                val len = when (status and 0xF0) {
+                    0xC0, 0xD0 -> 2
+                    0xF0 -> when (status) { 0xF1, 0xF3 -> 2; 0xF2 -> 3; else -> 1 }
+                    else -> 3
+                }
+                if (i + len > end) break
 
-                val messageType = byte and 0xF0
-                if (messageType != NOTE_ON && messageType != NOTE_OFF) { i += 3; continue }
+                val messageType = status and 0xF0
+                if (messageType != NOTE_ON && messageType != NOTE_OFF) { i += len; continue }
 
-                val noteNumber = data[i + 1].toInt() and 0xFF
-                val velocity  = data[i + 2].toInt() and 0xFF
+                val noteNumber = data[i + 1].toInt() and 0x7F
+                val velocity  = data[i + 2].toInt() and 0x7F
+                i += len
 
-                // QWERTY mode dengan SUSTAIN/HOLD support.
-                //
-                // Banyak MIDI keyboard kirim "key release" sebagai NOTE_ON
-                // velocity=0 (running-status optimization) BUKAN NOTE_OFF
-                // (0x80). Mapping naive `isDown=(messageType==NOTE_ON)`
-                // akan keliru menganggap release sebagai press kedua →
-                // double note tiap pencet+lepas.
-                //
-                // Mapping yang BENAR (dan yang prevent double-notes):
-                //   press   = NOTE_ON  AND velocity > 0   → isDown=true
-                //   release = NOTE_OFF OR  velocity == 0  → isDown=false
-                //
-                // Native side maintain held-keys set, jadi press akan
-                // di-hold sampai release event datang. Tahan tuts =
-                // beneran tahan di virtual HID, bukan tap sekejap.
+                // Release bisa dikirim sbg NOTE_ON velocity=0 (running-status
+                // optimization) — jangan dianggap press kedua.
                 val isPress = (messageType == NOTE_ON) && velocity > 0
-                val isRelease = (messageType == NOTE_OFF) ||
-                        (messageType == NOTE_ON && velocity == 0)
-                if (!isPress && !isRelease) { i += 3; continue }
+                if (noteNumber !in 21..108) continue
 
-                if (noteNumber !in 21..108) { i += 3; continue }
-
-                val gp = iGamePad
                 if (gp == null) {
-                    // Diagnostic critical: user pencet MIDI tapi daemon
-                    // belum ke-bind. Tanpa toast ini, user bingung kenapa
-                    // Roblox piano gak nyala. Skip toast utk release
-                    // event biar gak spam dua kali per pencet.
                     if (isPress && warnedNullBridge.compareAndSet(false, true)) {
                         Log.e(TAG, "qwertyKey skipped: iGamePad=null. " +
                                 "Daemon belum jalan / binder gak masuk.")
-
                     }
-                    i += 3; continue
+                    continue
                 }
 
                 try {
@@ -645,11 +694,7 @@ class MidiBridgeService : AccessibilityService() {
                     gp.qwertyKey(noteNumber, isPress, v)
                 } catch (e: Exception) {
                     Log.e(TAG, "qwertyKey error: $e")
-                    if (warnedNullBridge.compareAndSet(false, true)) {
-
-                    }
                 }
-                i += 3
             }
         }
     }
@@ -702,9 +747,12 @@ class MidiBridgeService : AccessibilityService() {
     /* ---------------- LIFECYCLE ---------------- */
 
     override fun onDestroy() {
+        destroyed = true
         super.onDestroy()
         // Stop periodic health checks
         mainHandler.removeCallbacks(bridgeHealthRunnable)
+        // Jangan tinggalin key nyangkut di virtual keyboard.
+        releaseAllKeys()
 
         // Unlink DeathRecipient dari binder daemon
         try { currentBinder?.unlinkToDeath(binderDeathRecipient, 0) } catch (_: Throwable) {}
@@ -715,6 +763,9 @@ class MidiBridgeService : AccessibilityService() {
             deviceCallback?.let { midiManager?.unregisterDeviceCallback(it) }
         } catch (e: Throwable) { Log.w(TAG, "unregisterDeviceCallback", e) }
         try { midiOutputPort?.close() } catch (_: Throwable) {}
+        midiOutputPort = null
+        try { midiDevice?.close() } catch (_: Throwable) {}
+        midiDevice = null
         if (isBroadcastRegistered) {
             try { unregisterReceiver(mBroadcastReceiver) } catch (_: Exception) {}
         }
@@ -727,15 +778,11 @@ class MidiBridgeService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent) {}
     override fun onInterrupt() {}
 
-    override fun onKeyEvent(event: KeyEvent): Boolean {
-        if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) {
-            try {
-                iGamePad?.qwertyKey(50, event.action == KeyEvent.ACTION_DOWN, 0)
-            } catch (e: Throwable) { Log.w(TAG, "volumeUp -> qwertyKey", e) }
-            return true
-        }
-        return super.onKeyEvent(event)
-    }
+    // NOTE: onKeyEvent (Volume Up -> not 50) DIHAPUS bareng
+    // flagRequestFilterKeyEvents di res/xml/a.xml. Filter key itu bikin SEMUA
+    // key event di HP — termasuk tiap not dari virtual keyboard kita — mampir
+    // dulu ke main thread app ini sebelum sampai ke Roblox: nambah latency
+    // per not dan bisa nge-freeze input seluruh HP kalau main thread sibuk.
 
     companion object {
         const val TAG = "PapianoMidi"

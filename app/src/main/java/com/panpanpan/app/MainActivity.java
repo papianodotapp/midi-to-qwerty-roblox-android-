@@ -112,7 +112,7 @@ public class MainActivity extends Activity implements PermissionHealthMonitor.He
         // Start health monitor
         healthMonitor = new PermissionHealthMonitor(this);
         healthMonitor.setCallback(this);
-        healthMonitor.start();
+        // start() dipanggil di onResume, stop() di onPause.
 
         // Request battery exemption in background
         ui.postDelayed(() -> bg.execute(this::requestBatteryExemption), 500);
@@ -533,7 +533,16 @@ public class MainActivity extends Activity implements PermissionHealthMonitor.He
     @Override
     protected void onResume() {
         super.onResume();
+        healthMonitor.start();
         healthMonitor.forceCheck();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Jangan polling (su / binder / MidiManager) di background selagi
+        // user main di Roblox — recovery daemon udah di-handle MidiBridgeService.
+        healthMonitor.stop();
     }
 
     @Override

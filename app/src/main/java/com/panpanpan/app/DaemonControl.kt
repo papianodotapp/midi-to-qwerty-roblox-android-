@@ -24,8 +24,32 @@ object DaemonControl {
     private const val RESPAWN_COOLDOWN_MS = 8_000L
     private const val DAEMON_CLASS = "com.panpanpan.app.GamePadNative"
 
+    private const val RESPAWN_COOLDOWN_MAX_MS = 120_000L
+
     private val respawnInFlight = AtomicBoolean(false)
     @Volatile private var lastRespawnAttemptMs = 0L
+
+    /**
+     * Berapa kali respawn berturut-turut yg belum berhasil connect. Tiap
+     * respawn = pkill daemon lama + bikin virtual keyboard uHID baru. Di
+     * Android, keyboard fisik dicabut/dicolok = config change ke SEMUA app
+     * (termasuk Roblox) + InputReader reconfigure. Kalau binder gak pernah
+     * nyampe, dulu ini diulang tiap ~15 detik selamanya -> HP makin berat.
+     * Sekarang cooldown naik eksponensial (8s, 16s, 32s ... max 2 menit),
+     * reset ke 0 begitu bridge connect ([onConnected]).
+     */
+    @Volatile private var consecutiveFailures = 0
+
+    /** Dipanggil MidiBridgeService saat binder daemon berhasil ke-attach. */
+    @JvmStatic
+    fun onConnected() {
+        consecutiveFailures = 0
+    }
+
+    private fun currentCooldown(): Long {
+        val shift = consecutiveFailures.coerceAtMost(4)
+        return (RESPAWN_COOLDOWN_MS shl shift).coerceAtMost(RESPAWN_COOLDOWN_MAX_MS)
+    }
 
     private fun method(context: Context): String =
         context.getSharedPreferences("data", 0)
@@ -47,9 +71,12 @@ object DaemonControl {
     fun respawn(context: Context) {
         val now = SystemClock.elapsedRealtime()
         synchronized(this) {
-            if (now - lastRespawnAttemptMs < RESPAWN_COOLDOWN_MS) return
+            if (lastRespawnAttemptMs != 0L &&
+                now - lastRespawnAttemptMs < currentCooldown()) return
             if (!respawnInFlight.compareAndSet(false, true)) return
             lastRespawnAttemptMs = now
+            // Dihitung gagal sampai onConnected() bilang sebaliknya.
+            consecutiveFailures++
         }
         val appContext = context.applicationContext
         val m = method(appContext)

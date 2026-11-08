@@ -78,6 +78,8 @@ public class GamePadNative {
 
     static native void nativeQwertyKey(int noteNumber, boolean isDown, int velocity);
 
+    static native void nativeReleaseAll();
+
     private static void sendBinderToAppByStickyBroadcast() {
 
         try {
@@ -94,6 +96,11 @@ public class GamePadNative {
                     // sebelum not kalau level velocity berubah. Gating ON/OFF
                     // dilakukan di MidiBridgeService (kirim 0 saat toggle OFF).
                     nativeQwertyKey(noteNumber, isDown, velocity);
+                }
+
+                @Override
+                public void releaseAll() throws RemoteException {
+                    nativeReleaseAll();
                 }
 
                 @Override
