@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Neo-brutalist palette — sky blue base, ink-black outlines, loud accents -->
+    <color name="bg_dark">#B9ECFF</color>
+    <color name="bg_card">#F8FDFF</color>
+    <color name="bg_surface">#D7F6FF</color>
+    <color name="accent_primary">#2EC5FF</color>
+    <color name="accent_secondary">#FFE45C</color>
+    <color name="accent_glow">#00A8E8</color>
+    <color name="accent_gold">#FFB703</color>
+    <color name="accent_gold_light">#FFF176</color>
+    <color name="green">#00C853</color>
+    <color name="red">#FF4D6D</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="text_primary">#111111</color>
+    <color name="text_secondary">#23343A</color>
+    <color name="text_muted">#5B6B73</color>
+    <color name="divider">#111111</color>
+    <color name="brutal_black">#111111</color>
+    <color name="brutal_shadow">#111111</color>
+    <color name="brutal_pink">#FF5FA2</color>
+    <color name="brutal_lime">#8DFF6A</color>
+
+    <!-- Legacy aliases kept for compat -->
+    <color name="a">#2EC5FF</color>
+    <color name="fg">#111111</color>
+    <color name="bg">#B9ECFF</color>
+    <color name="yellow">#FFE45C</color>
+    <color name="gray">#5B6B73</color>
+    <color name="blue">#2EC5FF</color>
+</resources>

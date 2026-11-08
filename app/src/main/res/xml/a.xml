@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Accessibility config — service ini cuma kepake supaya proses app tetep
+  hidup di background (MIDI receiver + foreground notification).
+
+  PERFORMANCE / ANTI-FREEZE (penting, jangan dibalikin):
+
+  1. JANGAN pakai flagRequestFilterKeyEvents / canRequestFilterKeyEvents.
+     Dengan flag itu, SEMUA key event di HP (termasuk tiap not dari virtual
+     keyboard uHID kita) ditahan system_server, dikirim ke main thread app
+     ini, dan baru diterusin ke Roblox setelah onKeyEvent() balik. Itu nambah
+     1 round-trip binder per not (latency), dan kalau main thread app lagi
+     sibuk/GC, seluruh input HP ke-antri (sampai timeout ~500ms per event)
+     -> HP berasa nge-freeze, apalagi pas passage cepet.
+
+  2. JANGAN pakai typeAllMask + notificationTimeout=0. Itu bikin system
+     ngirim SETIAP accessibility event dari SEMUA app (Roblox ngirim ribuan
+     window-content-changed per detik) ke proses ini, dan bikin tiap app
+     ngebangun event yang sebenarnya gak dipake. onAccessibilityEvent kita
+     kosong, jadi cukup 1 tipe event yg jarang banget (announcement) — tetep
+     gak kosong (beberapa device gak nge-bind service kalau kosong), tapi
+     hampir gak ada traffic.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeAnnouncement"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagDefault"
+    android:canRequestFilterKeyEvents="false"
+    android:canRetrieveWindowContent="false"
+    android:notificationTimeout="1000" />

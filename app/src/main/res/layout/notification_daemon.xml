@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/notif_bg"
+    android:padding="12dp">
+
+    <View
+        android:id="@+id/daemon_accent_bar"
+        android:layout_width="3dp"
+        android:layout_height="match_parent"
+        android:layout_alignParentStart="true"
+        android:layout_marginEnd="12dp"
+        android:background="@color/brutal_pink" />
+
+    <ImageView
+        android:id="@+id/daemon_icon"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_centerVertical="true"
+        android:layout_toEndOf="@id/daemon_accent_bar"
+        android:scaleType="fitCenter"
+        android:src="@drawable/iconpop" />
+
+    <TextView
+        android:id="@+id/daemon_stop"
+        android:layout_width="wrap_content"
+        android:layout_height="32dp"
+        android:layout_alignParentEnd="true"
+        android:layout_centerVertical="true"
+        android:background="@drawable/button_danger"
+        android:gravity="center"
+        android:minWidth="72dp"
+        android:paddingStart="14dp"
+        android:paddingEnd="18dp"
+        android:text="STOP"
+        android:textColor="@color/brutal_black"
+        android:textSize="11sp"
+        android:textStyle="bold" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_centerVertical="true"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="10dp"
+        android:layout_toEndOf="@id/daemon_icon"
+        android:layout_toStartOf="@id/daemon_stop"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/daemon_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:singleLine="true"
+            android:text="PAPIANO!"
+            android:textColor="@color/brutal_black"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/daemon_subtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:singleLine="true"
+            android:text="MIDI bridge running • Tap to open"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
+    </LinearLayout>
+</RelativeLayout>
